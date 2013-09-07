@@ -41,47 +41,82 @@ namespace AccountExplorer
                 string _balanceElement = x.Element("balanceElement").Value.ToString();
                 string _pinElement = x.Element("pinElement").Value.ToString();
                 string _pin = x.Element("pin").Value.ToString();
+                string _dueOnElement = x.Element("dueOnElement").Value;
+                string _dueOnText = x.Element("dueOnText").Value;
+                string _dueOnType = x.Element("dueOnType").Value;
 
                 WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
-                wait.Until((d) => { return driver.FindElement(By.Id(_usernameElement)); });
-
-                IWebElement username = driver.FindElement(By.Id(_usernameElement));
-                username.SendKeys(_username);
-                IWebElement password = driver.FindElement(By.Id(_passwordElement));
-                password.SendKeys(_password);
-
-                wait.Until((d) => { return d.Title.ToLower().Contains("account"); });
-
-                if (_pin != "")
-                {
-                    driver.Manage().Timeouts().ImplicitlyWait(TimeSpan.FromSeconds(10));
-                    IWebElement pin = driver.FindElement(By.Id(_pinElement));
-                    pin.SendKeys(_pin);
-                }
-                
                 driver.Manage().Timeouts().ImplicitlyWait(TimeSpan.FromSeconds(10));
-                string msg = "";
-                switch (_balanceType)
+                try
                 {
-                    case "ClassName":
-                        msg = _companyName + " Balance: " + driver.FindElement(By.ClassName(_balanceElement)).Text;
-                        
-                        break;
-                    case "Id":
-                        msg += _companyName + " Balance: " + driver.FindElement(By.Id(_balanceElement)).Text;
-                        break;
-                    default:
-                        break;
-                }
+                    IWebElement username = driver.FindElement(By.Id(_usernameElement));
+                    username.SendKeys(_username);
+                    IWebElement password = driver.FindElement(By.Id(_passwordElement));
+                    password.SendKeys(_password);
 
-                System.Console.WriteLine(msg);
-                EmailText += "<div>" + msg + "</div>";
+                    wait.Until((d) => { return d.Title.ToLower().Contains("account"); });
+
+                    if (_pin != "")
+                    {
+                        IWebElement pin = driver.FindElement(By.Id(_pinElement));
+                        pin.SendKeys(_pin);
+                    }
+                
+                    driver.Manage().Timeouts().ImplicitlyWait(TimeSpan.FromSeconds(10));
+                    string msg = "";
+                    switch (_balanceType)
+                    {
+                        case "ClassName":
+                            msg += _companyName + " Balance: " + driver.FindElement(By.ClassName(_balanceElement)).Text;
+                            break;
+                        case "Id":
+                            msg += _companyName + " Balance: " + driver.FindElement(By.Id(_balanceElement)).Text;
+                            break;
+                        default:
+                            break;
+                    }
+
+                    msg += " - " + dueDateGetter(_dueOnElement, _dueOnText, driver, _dueOnType);
+
+                    System.Console.WriteLine(msg);
+                    EmailText += "<div>" + msg + "</div>";
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
             driver.Quit();
             sendMail(EmailText);
 
+            Console.WriteLine("Press any key to continue.");
+            Console.ReadKey();
+
         }
 
+        private static string dueDateGetter(string _dueOnElement, string _dueOnText, IWebDriver driver, string _dueOnType)
+        {
+            string msg = "";
+            switch (_dueOnType)
+            {
+                case "Class":
+                    List<IWebElement> els = driver.FindElements(By.ClassName(_dueOnElement)).ToList<IWebElement>();
+                    foreach (IWebElement el in els)
+                    {
+                        if (el.Text.Contains(_dueOnText))
+                        {
+                            msg +=  el.Text;
+                            break;
+                        }
+                    }
+                    break;
+                case "Id":
+                    msg += "Due On: " + driver.FindElement(By.Id(_dueOnElement)).Text;
+                break;
+            }   
+            return msg;
+        }
+        
         static void sendMail(string EmailText)
         {
             MailMessage mail = new MailMessage();
@@ -98,7 +133,14 @@ namespace AccountExplorer
             smtp.Credentials = new System.Net.NetworkCredential(ConfigurationManager.AppSettings["emailAddress"].ToString(), ConfigurationManager.AppSettings["emailPassword"].ToString());
             smtp.EnableSsl = true;
             smtp.DeliveryMethod = SmtpDeliveryMethod.Network;
-            smtp.Send(mail);
+            try
+            {
+                smtp.Send(mail);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Failed to send email - " + ex.Message);
+            }
         }
     }
 }
