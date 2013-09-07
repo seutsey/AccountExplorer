@@ -9,6 +9,8 @@ using OpenQA.Selenium.Support.UI;
 using OpenQA.Selenium.Chrome;
 using System.Security.Cryptography;
 using System.Xml.Linq;
+using System.Net.Mail;
+using System.Configuration;
 
 namespace AccountExplorer
 {
@@ -17,7 +19,9 @@ namespace AccountExplorer
         static void Main(string[] args)
         {
             IWebDriver driver = new FirefoxDriver();
+            
             XDocument xdoc = XDocument.Load("WebsiteData.xml");
+            string EmailText = "<h1>Account Statuses for " + DateTime.Now.ToShortDateString() + "</h1><br />";
 
             IEnumerable<XElement> websiteInfo = from w in xdoc.Descendants("website")
                                                 select w;
@@ -56,21 +60,45 @@ namespace AccountExplorer
                 }
                 
                 driver.Manage().Timeouts().ImplicitlyWait(TimeSpan.FromSeconds(10));
+                string msg = "";
                 switch (_balanceType)
                 {
                     case "ClassName":
-                        System.Console.WriteLine(_companyName + " Balance: " + driver.FindElement(By.ClassName(_balanceElement)).Text);
+                        msg = _companyName + " Balance: " + driver.FindElement(By.ClassName(_balanceElement)).Text;
+                        
                         break;
                     case "Id":
-                        System.Console.WriteLine(_companyName + " Balance: " + driver.FindElement(By.Id(_balanceElement)).Text);
+                        msg += _companyName + " Balance: " + driver.FindElement(By.Id(_balanceElement)).Text;
                         break;
                     default:
                         break;
                 }
+
+                System.Console.WriteLine(msg);
+                EmailText += "<div>" + msg + "</div>";
             }
             driver.Quit();
+            sendMail(EmailText);
 
-            Console.ReadKey();
+        }
+
+        static void sendMail(string EmailText)
+        {
+            MailMessage mail = new MailMessage();
+            mail.To.Add(ConfigurationManager.AppSettings["emailAddress"].ToString());
+            mail.From = new MailAddress("seutsey@gmail.com");
+            mail.Subject = "Account Statuses for " + DateTime.Now.ToShortDateString();
+            mail.Body = EmailText;
+            mail.IsBodyHtml = true;
+
+            SmtpClient smtp = new SmtpClient();
+            smtp.Host = "smtp.gmail.com";
+            smtp.Port = 465;
+            smtp.UseDefaultCredentials = false;
+            smtp.Credentials = new System.Net.NetworkCredential(ConfigurationManager.AppSettings["emailAddress"].ToString(), ConfigurationManager.AppSettings["emailPassword"].ToString());
+            smtp.EnableSsl = true;
+            smtp.DeliveryMethod = SmtpDeliveryMethod.Network;
+            smtp.Send(mail);
         }
     }
 }
